@@ -28,8 +28,6 @@ void logger_init_derived(logger**l, logger * parent, const char * name ) {
 
 void message( logger * l, const char * fmt, ...) {
 
-	pthread_mutex_lock(l->lock);
-
 	char * mesg=NULL;
 
 	va_list ap;
@@ -43,7 +41,19 @@ void message( logger * l, const char * fmt, ...) {
 		return;
 	}
 
+	pthread_mutex_lock(l->lock);
 	printf("%s : %s", l->prefix, mesg);
 	pthread_mutex_unlock(l->lock);
+	free(mesg);
+}
+
+void logger_free_derived(logger*l) {
+	free(l);
+}
+
+void logger_free_root(logger*l) {
+	pthread_mutex_destroy(l->lock);
+	free(l->lock);
+	free(l);
 }
 

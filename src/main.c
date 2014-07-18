@@ -141,8 +141,7 @@ void run_worker( struct worker * w ) {
 				pthread_mutex_unlock(&q->lock);
 
 				w->vtable->process(w,entry);
-
-
+				free(entry);
 			} else {
 				message(logx,"My queue is empty...\n");
 				pthread_mutex_unlock(&q->lock);
@@ -156,6 +155,7 @@ void run_worker( struct worker * w ) {
 	}
 
 	message(logx," --- worker thread exiting\n");
+	logger_free_derived(logx);
 }
 
 void idle(worker * w) {
@@ -219,6 +219,9 @@ int main() {
 
 	message(root_logger,"Loading sqlite3 configuration...\n");
 	message(root_logger," -- NYI\n");
+
+	closedir(d);
+	d=NULL;
 
 	message(root_logger,"Starting sqlite3 thread...\n");
 	work_queue * sqlite3_queue;
@@ -289,8 +292,11 @@ int main() {
 	work_queue_destroy( sqlite3_queue );
 	work_queue_destroy( git_local_queue );
 	work_queue_destroy( git_remote_queue );
+	work_queue_destroy( main_queue );
 
 	message(root_logger,"Done\n");
+
+	logger_free_root(root_logger);
 
 	return 0;
 
@@ -298,6 +304,8 @@ error_exit:
 	if (d!=NULL) {
 		closedir(d);
 	}
+
+	logger_free_root(root_logger);
 
 	return 1;
 }

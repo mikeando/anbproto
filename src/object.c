@@ -12,11 +12,15 @@ int anbp_object_create(anbp_object ** object, anbp_object_id * id, int counter, 
 
     //Copy the id
     anbp_object_id * new_id = malloc(sizeof(anbp_object_id));
-    char * id_str = malloc(id->length);
+    char * id_str = malloc(id->length+1);
     memcpy(id_str, id->id, id->length);
+    id_str[id->length]='\0';
+    new_id->id = id_str;
+    new_id->length = id->length;
+    
 
-	obj->id = new_id;
-	obj->counter = counter;
+    obj->id = new_id;
+    obj->counter = counter;
     obj->mesg = strdup(mesg);
     *object = obj;
     return 0;

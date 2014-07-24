@@ -86,6 +86,20 @@ struct sqlite_thread_data {
 
 typedef struct sqlite_thread_data sqlite_thread_data;
 
+struct git_local_thread_data {
+	work_queue * queue;
+	logger * root_logger;
+};
+
+typedef struct git_local_thread_data git_local_thread_data;
+
+struct git_remote_thread_data {
+	work_queue * queue;
+	logger * root_logger;
+};
+
+typedef struct git_remote_thread_data git_remote_thread_data;
+
 void* sqlite_thread_fn(void * data) {
 	sqlite_thread_data * d = data;
 	work_queue * q = d->queue;
@@ -111,13 +125,50 @@ void* sqlite_thread_fn(void * data) {
 }
 
 void* git_local_thread_fn(void * data) {
-	printf(" --- In git local thread\n");
-	printf(" --- git local thread exiting\n");
+	git_local_thread_data * d = data;
+	work_queue * q = d->queue;
+	logger * logx;
+	logger_init_derived(&logx, d->root_logger, "GIT_L");
+	message(logx," --- In git local thread\n");
+	while(1) {
+		if(pthread_mutex_trylock(&q->lock)==0) {
+			if(q->poisoned==1) {
+				pthread_mutex_unlock(&q->lock);
+				break;
+			}
+			message(logx,"Trying to consume stuff off my work queue\n");
+			pthread_mutex_unlock(&q->lock);
+		} else {
+			message(logx,"Spinning...\n");
+		}
+		usleep(10);
+	}
+
+	message(logx," --- git local thread exiting\n");
 	return NULL;
 }
+
 void* git_remote_thread_fn(void * data) {
-	printf(" --- In git remote thread\n");
-	printf(" --- git remote thread exiting\n");
+	git_remote_thread_data * d = data;
+	work_queue * q = d->queue;
+	logger * logx;
+	logger_init_derived(&logx, d->root_logger, "GIT_R");
+	message(logx," --- In git remote thread\n");
+	while(1) {
+		if(pthread_mutex_trylock(&q->lock)==0) {
+			if(q->poisoned==1) {
+				pthread_mutex_unlock(&q->lock);
+				break;
+			}
+			message(logx,"Trying to consume stuff off my work queue\n");
+			pthread_mutex_unlock(&q->lock);
+		} else {
+			message(logx,"Spinning...\n");
+		}
+		usleep(10);
+	}
+
+	message(logx," --- git remote thread exiting\n");
 	return NULL;
 }
 
@@ -153,23 +204,29 @@ int main() {
 	message(root_logger,"Starting sqlite3 thread...\n");
 	work_queue * sqlite3_queue;
 	work_queue_create(&sqlite3_queue);
-	pthread_t sqlite3_thread;
 	sqlite_thread_data sqlite3_data;
 	sqlite3_data.queue = sqlite3_queue;
 	sqlite3_data.root_logger = root_logger;
+	pthread_t sqlite3_thread;
 	pthread_create(&sqlite3_thread, NULL, &sqlite_thread_fn, &sqlite3_data);
 	message(root_logger,"Starting thread for local git operation...\n");
 
 	work_queue * git_local_queue;
 	work_queue_create(&git_local_queue);
+	git_local_thread_data git_local_data;
+	git_local_data.queue = git_local_queue;
+	git_local_data.root_logger = root_logger;
 	pthread_t git_local_thread;
-	pthread_create(&git_local_thread, NULL, &git_local_thread_fn, git_local_queue);
+	pthread_create(&git_local_thread, NULL, &git_local_thread_fn, &git_local_data);
 
 	message(root_logger,"Starting thread for remote git operation...\n");
 	work_queue * git_remote_queue;
 	work_queue_create(&git_remote_queue);
+	git_remote_thread_data git_remote_data;
+	git_remote_data.queue = git_remote_queue;
+	git_remote_data.root_logger = root_logger;
 	pthread_t git_remote_thread;
-	pthread_create(&git_remote_thread, NULL, &git_remote_thread_fn, git_remote_queue);
+	pthread_create(&git_remote_thread, NULL, &git_remote_thread_fn, &git_remote_data);
 
 
 	message(root_logger,"Telling remote git to refresh...\n");

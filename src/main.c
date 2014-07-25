@@ -149,17 +149,26 @@ struct git_remote_thread_data {
 
 typedef struct git_remote_thread_data git_remote_thread_data;
 
+typedef struct worker worker;
+
+struct worker_vtable {
+	void (*idle)(worker * );
+	void (*process)(worker * ,work_queue_entry* entry);
+};
 
 struct worker {
+	struct worker_vtable * vtable;
 	work_queue * queue;
 	const char * name;
 	logger * root_logger;
+	logger * logger;
 };
 
 void run_worker( struct worker * w ) {
 	work_queue * q = w->queue;
 	logger * logx;
 	logger_init_derived(&logx, w->root_logger, w->name);
+	w->logger = logx;
 	message(logx," --- Started worker thread\n");
 	while(1) {
 		if(pthread_mutex_trylock(&q->lock)==0) {
@@ -174,41 +183,56 @@ void run_worker( struct worker * w ) {
 				q->read_cursor++;
 				pthread_mutex_unlock(&q->lock);
 
-				message(logx,"My entry is : %s\n", entry->name);
+				w->vtable->process(w,entry);
+
 
 			} else {
 				message(logx,"My queue is empty...\n");
 				pthread_mutex_unlock(&q->lock);
+				w->vtable->idle(w);
+				usleep(10);
 			}
 		} else {
-			message(logx,"Spinning...\n");
+			w->vtable->idle(w);
+			usleep(10);
 		}
-		usleep(10);
 	}
 
 	message(logx," --- worker thread exiting\n");
 }
 
+void idle(worker * w) {
+	message(w->logger, "idling...\n");
+}
+
+void process( worker * w, work_queue_entry * entry ) {
+	message(w->logger,"My entry is : %s\n", entry->name);
+}
+
 void* sqlite_thread_fn(void * data) {
 	sqlite_thread_data * d = data;
-	struct worker w = { d->queue, "SQLITE3", d->root_logger };
+	struct worker_vtable vtable = {&idle, &process};
+	struct worker w = { &vtable, d->queue, "SQLITE3", d->root_logger, NULL };
 	run_worker(&w);
 	return NULL;
 }
 
 void* git_local_thread_fn(void * data) {
 	git_local_thread_data * d = data;
-	struct worker w = { d->queue, "GIT_L", d->root_logger };
+	struct worker_vtable vtable = {&idle, &process};
+	struct worker w = { &vtable, d->queue, "GIT_L", d->root_logger, NULL };
 	run_worker(&w);
 	return NULL;
 }
 
 void* git_remote_thread_fn(void * data) {
 	git_remote_thread_data * d = data;
-	struct worker w = { d->queue, "GIT_R", d->root_logger };
+	struct worker_vtable vtable = {&idle, &process};
+	struct worker w = { &vtable, d->queue, "GIT_R", d->root_logger, NULL };
 	run_worker(&w);
 	return NULL;
 }
+
 
 int main() {
 
@@ -291,7 +315,7 @@ int main() {
 	message(root_logger,"Telling remote git to push\n");
 
 	message(root_logger,"Napping...\n");
-	usleep(100);
+	usleep(1000);
 
 	message(root_logger,"Poisoning the worker threads\n");
 

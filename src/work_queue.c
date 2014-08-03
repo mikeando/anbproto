@@ -58,11 +58,3 @@ work_queue_entry * work_queue_create_action(const char * name, int type, void(*p
 	retval->user_data = user_data;
 	return retval;
 }
-
-work_queue_entry * work_queue_create_actionX(const char * name, int type, work_queue * origin) {
-	work_queue_entry * retval = malloc(sizeof(work_queue_entry));
-	retval->name = name;
-	retval->type = type;
-	return retval;
-}
-

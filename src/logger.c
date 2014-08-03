@@ -4,7 +4,10 @@
 #include <stdarg.h>
 #include <stdio.h>
 
+#include "anbproto/structtypes.h"
+
 struct logger {
+	uint64_t magic;
 	pthread_mutex_t * lock;
 	const char * prefix;
 };
@@ -12,6 +15,7 @@ struct logger {
 // Create a logger with its own mutex
 void logger_init_root(logger** l, const char * name) {
 	logger * ll = malloc(sizeof(logger));
+	ll->magic = logger_MAGIC;
 	ll->lock = malloc(sizeof(pthread_mutex_t));
 	pthread_mutex_init(ll->lock, NULL);
 	ll->prefix = name;

@@ -3,24 +3,39 @@
 
 typedef struct work_queue_entry work_queue_entry;
 typedef struct work_queue work_queue;
+typedef struct worker worker;
 void work_queue_create(work_queue **q);
 void work_queue_add(work_queue *q, work_queue_entry * entry);
 
-//TODO: These action creators are naf.
-work_queue_entry * work_queue_create_action(const char * name);
-work_queue_entry * work_queue_create_actionX(const char * name, work_queue * origin);
+//TODO: This action creator is naf.
+work_queue_entry * work_queue_create_action(const char * name, int type, void(*process)(work_queue_entry* self, worker* w), void* user_data);
 void work_queue_destroy(work_queue *q);
 void work_queue_poison(work_queue *q);
 
 #include <pthread.h>
-//TODO: Move this?
+#include <stdint.h>
+
+//TODO: Make these more type-safey
+#define ANBP_DB_SAVE_OBJECT 1
+#define ANBP_DB_LOAD_OBJECT 2
+
+struct work_queue_entry_vtable {
+	void(*process)(work_queue_entry* self, worker * w);
+};
+
+typedef struct work_queue_entry_vtable work_queue_entry_vtable;
+
 struct work_queue_entry {
-	//TODO: Not sure this is usefull .. but need some stub filler in there for now.
-	const char * name;
+	uint64_t magic;
+	__attribute__((deprecated)) const char * name;
+	__attribute__((deprecated)) int type;
+	work_queue_entry_vtable * vtable;
+	void * user_data;
 };
 
 //TODO: Move this?
 struct work_queue {
+	uint64_t magic;
 	pthread_mutex_t lock;
 	int poisoned;
 	//TODO: This needs a lot of work .. at the moment we just add entries and increment a cursor.

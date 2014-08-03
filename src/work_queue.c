@@ -1,14 +1,17 @@
 #include "anbproto/work_queue.h"
+#include "anbproto/structtypes.h"
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <assert.h>
 
-
+//TODO: Need to differentiate between a work queue and a message queue.
 
 void work_queue_create(work_queue **q) {
 	work_queue * retval = malloc(sizeof(work_queue));
 	memset(retval, 0, sizeof(work_queue));
+	retval->magic = work_queue_MAGIC;
 	retval->poisoned = 0;
 	pthread_mutex_init(&retval->lock, NULL);
 
@@ -45,15 +48,21 @@ void work_queue_add(work_queue * q, work_queue_entry * entry ) {
 
 
 //TODO: These action creators are naf.
-work_queue_entry * work_queue_create_action(const char * name) {
+work_queue_entry * work_queue_create_action(const char * name, int type, void(*process)(work_queue_entry* self, worker* w), void* user_data) {
+	assert(process!=NULL);
 	work_queue_entry * retval = malloc(sizeof(work_queue_entry));
+	retval->vtable = malloc(sizeof(work_queue_entry_vtable));
 	retval->name = name;
+	retval->type = type;
+	retval->vtable->process = process;
+	retval->user_data = user_data;
 	return retval;
 }
 
-work_queue_entry * work_queue_create_actionX(const char * name, work_queue * origin) {
+work_queue_entry * work_queue_create_actionX(const char * name, int type, work_queue * origin) {
 	work_queue_entry * retval = malloc(sizeof(work_queue_entry));
 	retval->name = name;
+	retval->type = type;
 	return retval;
 }
 

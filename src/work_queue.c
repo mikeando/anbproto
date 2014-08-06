@@ -11,7 +11,7 @@
 void work_queue_create(work_queue **q) {
 	work_queue * retval = malloc(sizeof(work_queue));
 	memset(retval, 0, sizeof(work_queue));
-	retval->magic = work_queue_MAGIC;
+	smc_init_magic(work_queue, retval);
 	retval->poisoned = 0;
 	pthread_mutex_init(&retval->lock, NULL);
 

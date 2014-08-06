@@ -13,7 +13,7 @@
 #include "anbproto/structtypes.h"
 
 struct sqlite_thread_data {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	work_queue * queue;
 	logger * root_logger;
 	const char * filename;
@@ -22,7 +22,7 @@ struct sqlite_thread_data {
 typedef struct sqlite_thread_data sqlite_thread_data;
 
 struct git_local_thread_data {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	work_queue * queue;
 	logger * root_logger;
 };
@@ -30,7 +30,7 @@ struct git_local_thread_data {
 typedef struct git_local_thread_data git_local_thread_data;
 
 struct git_remote_thread_data {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	work_queue * queue;
 	logger * root_logger;
 };
@@ -38,13 +38,13 @@ struct git_remote_thread_data {
 typedef struct git_remote_thread_data git_remote_thread_data;
 
 struct worker_vtable {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	void (*idle)(worker * );
 	void (*process)(worker * ,work_queue_entry* entry);
 };
 
 struct worker {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	struct worker_vtable * vtable;
 	work_queue * queue;
 	const char * name;
@@ -101,7 +101,7 @@ void process( worker * w, work_queue_entry * entry ) {
 }
 
 struct sqlite3_worker_data {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	sqlite3 * db;
 	sqlite3_stmt * select_stmt;
 };
@@ -110,18 +110,18 @@ typedef struct sqlite3_worker_data sqlite3_worker_data;
 // Dummy object 
 // TODO: Pull this from the SQLITE...
 struct anbp_object {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	int counter;
 };
 
 typedef struct anbp_object anbp_object;
 
 void* sqlite_thread_fn(void * data) {
-	check_struct_type(sqlite_thread_data, data);
+	smc_check_type(sqlite_thread_data, data);
 	sqlite_thread_data * d = data;
 
-	struct sqlite3_worker_data wd;
-	wd.magic = sqlite3_worker_data_MAGIC;
+	sqlite3_worker_data wd;
+	smc_init_magic(sqlite3_worker_data, &wd);
 
 	sqlite3_open(d->filename, &wd.db);
 
@@ -129,8 +129,8 @@ void* sqlite_thread_fn(void * data) {
 	int sql_len = strlen(sql);
 	sqlite3_prepare_v2(wd.db,sql,sql_len, &wd.select_stmt, NULL);
 	
-	struct worker_vtable vtable = { worker_vtable_MAGIC, &idle, &process};
-	struct worker w = { worker_MAGIC, &vtable, d->queue, "SQLITE3", d->root_logger, NULL, &wd };
+	struct worker_vtable vtable = { smc__magic_worker_vtable, &idle, &process};
+	struct worker w = { smc__magic_worker, &vtable, d->queue, "SQLITE3", d->root_logger, NULL, &wd };
 	run_worker(&w);
 	sqlite3_finalize(wd.select_stmt);
 	sqlite3_close(wd.db);
@@ -138,19 +138,19 @@ void* sqlite_thread_fn(void * data) {
 }
 
 void* git_local_thread_fn(void * data) {
-	check_struct_type(git_local_thread_data, data);
+	smc_check_type(git_local_thread_data, data);
 	git_local_thread_data * d = data;
-	struct worker_vtable vtable = {worker_vtable_MAGIC, &idle, &process};
-	struct worker w = { worker_MAGIC, &vtable, d->queue, "GIT_L", d->root_logger, NULL, NULL };
+	struct worker_vtable vtable = {smc__magic_worker_vtable, &idle, &process};
+	struct worker w = { smc__magic_worker, &vtable, d->queue, "GIT_L", d->root_logger, NULL, NULL };
 	run_worker(&w);
 	return NULL;
 }
 
 void* git_remote_thread_fn(void * data) {
-	check_struct_type(git_remote_thread_data, data);
+	smc_check_type(git_remote_thread_data, data);
 	git_remote_thread_data * d = data;
-	struct worker_vtable vtable = {worker_vtable_MAGIC, &idle, &process};
-	struct worker w = { worker_MAGIC, &vtable, d->queue, "GIT_R", d->root_logger, NULL, NULL };
+	struct worker_vtable vtable = {smc__magic_worker_vtable, &idle, &process};
+	struct worker w = { smc__magic_worker, &vtable, d->queue, "GIT_R", d->root_logger, NULL, NULL };
 	run_worker(&w);
 	return NULL;
 }
@@ -172,7 +172,7 @@ void do_saved(work_queue_entry* self, worker* w) {
 void db_fetch_process(work_queue_entry * self, worker * w) {
 	message(w->logger, "Loading object... (IMPLEMENT ME)\n");
 
-	check_struct_type(sqlite3_worker_data, w->user_data);
+	smc_check_type(sqlite3_worker_data, w->user_data);
 	struct sqlite3_worker_data * wd = (struct sqlite3_worker_data*) w->user_data;
 
 	int status;
@@ -190,11 +190,11 @@ void db_fetch_process(work_queue_entry * self, worker * w) {
 	}
 
 	anbp_object * obj = malloc(sizeof(anbp_object));
-	obj->magic = anbp_object_MAGIC;
+	smc_init_magic(anbp_object, obj);
 	obj->counter = 1;
 
 	//TODO: Do something with obj.
-	check_struct_type(work_queue, self->user_data);
+	smc_check_type(work_queue, self->user_data);
 	work_queue * q = (work_queue*)self->user_data;
 	work_queue_add(q, work_queue_create_action("FETCHED", -1, &do_fetched, NULL));
 }
@@ -203,10 +203,10 @@ void db_save_process(work_queue_entry * entry, worker * w) {
 	message(w->logger, "Saving object... (IMPLEMENT ME)\n");
 	//TODO: Get the object from the entry and save it...
 	anbp_object * obj = malloc(sizeof(anbp_object));
-	obj->magic = anbp_object_MAGIC;
+	smc_init_magic(anbp_object,obj);
 
 	//TODO: Do something with obj.
-	check_struct_type(work_queue, entry->user_data);
+	smc_check_type(work_queue, entry->user_data);
 	work_queue * q = (work_queue*)entry->user_data;
 	work_queue_add(q, work_queue_create_action("SAVED", -1, &do_saved, NULL));
 }
@@ -248,7 +248,7 @@ int main() {
 	work_queue * sqlite3_queue;
 	work_queue_create(&sqlite3_queue);
 	sqlite_thread_data sqlite3_data;
-	sqlite3_data.magic = sqlite_thread_data_MAGIC;
+	smc_init_magic(sqlite_thread_data, &sqlite3_data);
 	sqlite3_data.queue = sqlite3_queue;
 	sqlite3_data.root_logger = root_logger;
 	sqlite3_data.filename = "./dummy.sqlite3";
@@ -259,7 +259,7 @@ int main() {
 	work_queue * git_local_queue;
 	work_queue_create(&git_local_queue);
 	git_local_thread_data git_local_data;
-	git_local_data.magic = git_local_thread_data_MAGIC;
+	smc_init_magic(git_local_thread_data, &git_local_data);
 	git_local_data.queue = git_local_queue;
 	git_local_data.root_logger = root_logger;
 	pthread_t git_local_thread;
@@ -269,7 +269,7 @@ int main() {
 	work_queue * git_remote_queue;
 	work_queue_create(&git_remote_queue);
 	git_remote_thread_data git_remote_data;
-	git_remote_data.magic = git_remote_thread_data_MAGIC;
+	smc_init_magic(git_remote_thread_data, &git_remote_data);
 	git_remote_data.queue = git_remote_queue;
 	git_remote_data.root_logger = root_logger;
 	pthread_t git_remote_thread;

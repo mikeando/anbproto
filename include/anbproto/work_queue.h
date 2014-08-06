@@ -14,6 +14,8 @@ void work_queue_poison(work_queue *q);
 
 #include <pthread.h>
 #include <stdint.h>
+#include "simplemagic.h"
+#include "anbproto/structtypes.h"
 
 //TODO: Make these more type-safey
 #define ANBP_DB_SAVE_OBJECT 1
@@ -26,7 +28,7 @@ struct work_queue_entry_vtable {
 typedef struct work_queue_entry_vtable work_queue_entry_vtable;
 
 struct work_queue_entry {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	__attribute__((deprecated)) const char * name;
 	__attribute__((deprecated)) int type;
 	work_queue_entry_vtable * vtable;
@@ -35,7 +37,7 @@ struct work_queue_entry {
 
 //TODO: Move this?
 struct work_queue {
-	uint64_t magic;
+	SMC_ADD_MAGIC();
 	pthread_mutex_t lock;
 	int poisoned;
 	//TODO: This needs a lot of work .. at the moment we just add entries and increment a cursor.

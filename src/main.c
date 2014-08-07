@@ -59,30 +59,26 @@ void run_worker( struct worker * w ) {
 	logger_init_derived(&logx, w->root_logger, w->name);
 	w->logger = logx;
 	message(logx," --- Started worker thread\n");
-	while(1) {
-		if(pthread_mutex_trylock(&q->lock)==0) {
-			if(q->poisoned==1) {
-				pthread_mutex_unlock(&q->lock);
-				break;
-			}
-			message(logx,"Trying to consume stuff off my work queue\n");
-			if(q->read_cursor < q->write_cursor) {
-				message(logx, "I have an entry\n");
-				work_queue_entry * entry = q->entries[q->read_cursor];
-				q->read_cursor++;
-				pthread_mutex_unlock(&q->lock);
+	work_queue_entry * entry;
+	int ok;
+	while((ok=work_queue_take(q,&entry))!=ANBPROTO_QUEUE_DONE) {
 
-				w->vtable->process(w,entry);
-				free(entry);
-			} else {
-				message(logx,"My queue is empty...\n");
-				pthread_mutex_unlock(&q->lock);
-				w->vtable->idle(w);
-				usleep(10);
-			}
-		} else {
+		message(logx,"Trying to consume stuff off my work queue\n");
+		if(ok==ANBPROTO_QUEUE_OK) {
+			message(logx, "I have an entry\n");
+			w->vtable->process(w,entry);
+			//TODO: Need to release this using its vtable.
+			free(entry);
+		} else if( ok==ANBPROTO_QUEUE_EMPTY ){
+			message(logx,"My queue is empty...\n");
 			w->vtable->idle(w);
 			usleep(10);
+		} else if (ok==ANBPROTO_QUEUE_BUSY ) {
+			message(logx,"My queue is empty...\n");
+			w->vtable->idle(w);
+			usleep(10);
+		} else {
+			assert(!"Invalid state returned by work_queue_take");
 		}
 	}
 

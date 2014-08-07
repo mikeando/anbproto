@@ -6,43 +6,41 @@
 #include <stdio.h>
 #include <assert.h>
 
-//TODO: Need to differentiate between a work queue and a message queue.
-
 void work_queue_create(work_queue **q) {
 	work_queue * retval = malloc(sizeof(work_queue));
-	memset(retval, 0, sizeof(work_queue));
 	smc_init_magic(work_queue, retval);
-	retval->poisoned = 0;
-	pthread_mutex_init(&retval->lock, NULL);
-
-	retval->entries = malloc(sizeof(work_queue_entry*)*10);
-	retval->max_entries = 10;
-	retval->read_cursor = 0;  // Where the next read will read from
-	retval->write_cursor = 0; // Where the next add will write to
+	mesg_queue_create(&retval->mesg_queue);
 	*q = retval;
 };
 
 void work_queue_destroy(work_queue *q) {
-	pthread_mutex_destroy(&q->lock);
-	free(q->entries);
+	mesg_queue_destroy(q->mesg_queue);
 	free(q);
 };
 
 void work_queue_poison(work_queue *q) {
-	pthread_mutex_lock(&q->lock);
-	q->poisoned = 1;
-	pthread_mutex_unlock(&q->lock);
+	mesg_queue_poison(q->mesg_queue);
 };
 
 void work_queue_add(work_queue * q, work_queue_entry * entry ) {
-	//TODO: Report errors better
-	if(q->write_cursor >= q->max_entries-1 ) {
-		printf("OMG I IZ TOAST.\n");
-		return;
-	}
+	mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
+	smc_init_magic(mesg_queue_entry, e);
+	e->user_data = entry;
 
-	q->entries[q->write_cursor] = entry;
-	q->write_cursor++;
+	mesg_queue_add(q->mesg_queue, e);
+}
+
+int work_queue_take(work_queue *q, work_queue_entry ** entry) {
+
+	mesg_queue_entry *e;
+	int ok = mesg_queue_take(q->mesg_queue, &e);
+	if(ok!=ANBPROTO_QUEUE_OK)
+		return ok;
+
+	work_queue_entry * wqe = e->user_data;
+	free(e);
+	*entry = wqe;
+	return ANBPROTO_QUEUE_OK ;
 }
 
 

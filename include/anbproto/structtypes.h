@@ -14,5 +14,7 @@ SMC_MAGIC(worker                 ,0x9d578c773cf81f41UL);
 SMC_MAGIC(logger                 ,0xb0618b25b8917bf8UL);
 SMC_MAGIC(work_queue             ,0x1c0504b859412982UL);
 SMC_MAGIC(sqlite3_worker_data    ,0xe948b1e3c9adcb30UL);
+SMC_MAGIC(mesg_queue             ,0xb7598d4e740fa5feUL);
+SMC_MAGIC(mesg_queue_entry       ,0x86fdc51ef81b698aUL);
 
 #endif

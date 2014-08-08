@@ -48,10 +48,6 @@ int mesg_queue_take(mesg_queue *q, mesg_queue_entry ** entry) {
 	if(pthread_mutex_trylock(&q->lock)!=0)
 		return ANBPROTO_QUEUE_BUSY;
 
-	if(q->poisoned==1) {
-		pthread_mutex_unlock(&q->lock);
-		return ANBPROTO_QUEUE_DONE;
-	}
 
 	if(q->read_cursor < q->write_cursor) {
                 mesg_queue_entry * e = q->entries[q->read_cursor];
@@ -59,6 +55,11 @@ int mesg_queue_take(mesg_queue *q, mesg_queue_entry ** entry) {
                 pthread_mutex_unlock(&q->lock);
 
 		*entry = e;
+		return ANBPROTO_QUEUE_OK;
+	}
+
+	if(q->poisoned==1) {
+		pthread_mutex_unlock(&q->lock);
 		return ANBPROTO_QUEUE_DONE;
 	}
 

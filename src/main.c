@@ -72,11 +72,11 @@ void run_worker( struct worker * w ) {
 		} else if( ok==ANBPROTO_QUEUE_EMPTY ){
 			message(logx,"My queue is empty...\n");
 			w->vtable->idle(w);
-			usleep(10);
+			usleep(100000);
 		} else if (ok==ANBPROTO_QUEUE_BUSY ) {
 			message(logx,"My queue is empty...\n");
 			w->vtable->idle(w);
-			usleep(10);
+			usleep(100000);
 		} else {
 			assert(!"Invalid state returned by work_queue_take");
 		}
@@ -100,6 +100,7 @@ struct sqlite3_worker_data {
 	SMC_ADD_MAGIC();
 	sqlite3 * db;
 	sqlite3_stmt * select_stmt;
+	sqlite3_stmt * update_stmt;
 };
 typedef struct sqlite3_worker_data sqlite3_worker_data;
 
@@ -107,7 +108,9 @@ typedef struct sqlite3_worker_data sqlite3_worker_data;
 // TODO: Pull this from the SQLITE...
 struct anbp_object {
 	SMC_ADD_MAGIC();
+    int id;
 	int counter;
+    const char * mesg;
 };
 
 typedef struct anbp_object anbp_object;
@@ -121,9 +124,16 @@ void* sqlite_thread_fn(void * data) {
 
 	sqlite3_open(d->filename, &wd.db);
 
-	const char * sql = "SELECT * FROM monkey";
-	int sql_len = strlen(sql);
-	sqlite3_prepare_v2(wd.db,sql,sql_len, &wd.select_stmt, NULL);
+    {
+        const char * sql = "SELECT id, counter, mesg FROM monkey WHERE id=?";
+        int sql_len = strlen(sql);
+        sqlite3_prepare_v2(wd.db,sql,sql_len, &wd.select_stmt, NULL);
+    }
+    {
+        const char * sql = "UPDATE monkey SET counter=?, mesg=? WHERE id=?";
+        int sql_len = strlen(sql);
+        sqlite3_prepare_v2(wd.db,sql,sql_len, &wd.update_stmt, NULL);
+    }
 	
 	struct worker_vtable vtable = { smc__magic_worker_vtable, &idle, &process};
 	struct worker w = { smc__magic_worker, &vtable, d->queue, "SQLITE3", d->root_logger, NULL, &wd };
@@ -165,46 +175,113 @@ void do_saved(work_queue_entry* self, worker* w) {
 	//TODO: Implement me
 }
 
+//TODO: Move me
+typedef struct db_action_fetch db_action_fetch;
+struct db_action_fetch {
+    SMC_ADD_MAGIC();
+    int target_id;
+    mesg_queue * q;
+};
+
+SMC_MAGIC(db_action_fetch, 0x12344321UL);
+
+//TODO: Move me
+typedef struct db_action_save db_action_save;
+struct db_action_save {
+    SMC_ADD_MAGIC();
+    anbp_object * object;
+    mesg_queue * q;
+};
+
+SMC_MAGIC(db_action_save, 0x43211234UL);
+
+
 void db_fetch_process(work_queue_entry * self, worker * w) {
 	message(w->logger, "Loading object... (IMPLEMENT ME)\n");
 
 	smc_check_type(sqlite3_worker_data, w->user_data);
 	struct sqlite3_worker_data * wd = (struct sqlite3_worker_data*) w->user_data;
 
+    smc_check_type(db_action_fetch, self->user_data);
+    db_action_fetch* action = (db_action_fetch*)self->user_data;
+
 	int status;
 	sqlite3_reset(wd->select_stmt);
 	sqlite3_clear_bindings(wd->select_stmt);
+    sqlite3_bind_int(wd->select_stmt, 1, action->target_id);
+   
+    
 	message(w->logger,"SQLITE: getting rows\n");	
-	while( (status = sqlite3_step(wd->select_stmt)) == SQLITE_ROW ) {
-		message(w->logger,"SQLITE: Got me a row\n");	
-	}
+	status = sqlite3_step(wd->select_stmt);
+    if(status!=SQLITE_ROW) {
+        // It's some kind of error .. we've either got no result
+        // or we've got a real error!
+        if(status == SQLITE_DONE) {
+            message(w->logger, "Error (%d) : No result from query\n");
+            //TODO: Let caller know its failed...
+            return;
+        }
 
-	if(status != SQLITE_DONE) {
 		message(w->logger, "Error (%d) : %s\n", status, sqlite3_errmsg(wd->db));
 		//TODO: Let caller know its failed...
 		return;
-	}
+    }
+
+
+    message(w->logger,"SQLITE: Got me a row\n");	
+    message(w->logger, "row : id=%d counter=%d mesg=%s\n", 
+            sqlite3_column_int(wd->select_stmt, 0),
+            sqlite3_column_int(wd->select_stmt, 1),
+            sqlite3_column_text(wd->select_stmt, 2)
+           );
 
 	anbp_object * obj = malloc(sizeof(anbp_object));
 	smc_init_magic(anbp_object, obj);
-	obj->counter = 1;
+	obj->id = sqlite3_column_int(wd->select_stmt, 0);
+	obj->counter = sqlite3_column_int(wd->select_stmt, 1);
+    //TODO: Not really a nice way to do this? (sqlite knows the length etc.)
+    obj->mesg = strdup((const char*)sqlite3_column_text(wd->select_stmt, 2));
 
-	//TODO: Do something with obj.
-	smc_check_type(work_queue, self->user_data);
-	work_queue * q = (work_queue*)self->user_data;
-	work_queue_add(q, work_queue_create_action("FETCHED", -1, &do_fetched, NULL));
+	mesg_queue * q = action->q;
+    //TODO: Should use a better type than this.
+    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
+    smc_init_magic(mesg_queue_entry, e);
+    e->user_data = obj;
+	mesg_queue_add(q, e);
 }
 
 void db_save_process(work_queue_entry * entry, worker * w) {
 	message(w->logger, "Saving object... (IMPLEMENT ME)\n");
-	//TODO: Get the object from the entry and save it...
-	anbp_object * obj = malloc(sizeof(anbp_object));
-	smc_init_magic(anbp_object,obj);
+
+	smc_check_type(sqlite3_worker_data, w->user_data);
+	struct sqlite3_worker_data * wd = (struct sqlite3_worker_data*) w->user_data;
+
+	smc_check_type(db_action_save, entry->user_data);
+    db_action_save * action = (db_action_save*)entry->user_data;
+	mesg_queue * q = action->q;
+    
+	anbp_object * obj = action->object;
+
+    message(w->logger,"Should be saving object id=%d, counter=%d, mesg=%s\n", obj->id, obj->counter, obj->mesg);
+
+	int status;
+	sqlite3_reset(wd->update_stmt);
+	sqlite3_clear_bindings(wd->update_stmt);
+    sqlite3_bind_int(wd->update_stmt, 1, obj->counter);
+    sqlite3_bind_text(wd->update_stmt, 2, obj->mesg, strlen(obj->mesg), SQLITE_TRANSIENT);
+    sqlite3_bind_int(wd->update_stmt, 3, obj->id);
+	status = sqlite3_step(wd->update_stmt);
+
+    if(status!=SQLITE_DONE) {
+		message(w->logger, "Error saving to db (%d) : %s\n", status, sqlite3_errmsg(wd->db));
+    }
 
 	//TODO: Do something with obj.
-	smc_check_type(work_queue, entry->user_data);
-	work_queue * q = (work_queue*)entry->user_data;
-	work_queue_add(q, work_queue_create_action("SAVED", -1, &do_saved, NULL));
+
+    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
+    smc_init_magic(mesg_queue_entry, e);
+    //TODO: put something useful into e.
+	mesg_queue_add(q, e);
 }
 
 
@@ -271,8 +348,8 @@ int main() {
 	pthread_t git_remote_thread;
 	pthread_create(&git_remote_thread, NULL, &git_remote_thread_fn, &git_remote_data);
 
-	work_queue * main_queue;
-	work_queue_create(&main_queue);
+	mesg_queue * main_queue;
+	mesg_queue_create(&main_queue);
 
 
 	message(root_logger,"Telling remote git to refresh...\n");
@@ -282,13 +359,61 @@ int main() {
 	message(root_logger,"Fetching an object from sqlite3\n");
 	
 	//It needs to know where to stick the object once its loaded - thats the main queue.
-	work_queue_add(sqlite3_queue, work_queue_create_action("Fetch Object", ANBP_DB_LOAD_OBJECT, db_fetch_process,  main_queue) );
+    db_action_fetch fetch;
+    smc_init_magic(db_action_fetch, &fetch);
+    fetch.target_id = 3;
+    fetch.q = main_queue;
 
-	message(root_logger,"TODO: Updating object\n");
-	// TODO: Wait for the response on the main queue.
+	work_queue_add(sqlite3_queue, work_queue_create_action("Fetch Object", ANBP_DB_LOAD_OBJECT, db_fetch_process,  &fetch) );
+
+    anbp_object * obj = NULL;
+    {
+        mesg_queue_entry * e;
+        {
+            int ct=0;
+            while(mesg_queue_take(main_queue, &e)!=ANBPROTO_QUEUE_OK) {
+                ++ct;
+                if(ct>1000*100) {
+                    message(root_logger,"Didn't get my object :(\n");
+                    exit(1);
+                }
+
+                usleep(100);
+            }
+        }
+
+        smc_check_type(anbp_object, e->user_data);
+        obj = e->user_data;
+        message(root_logger,"Got object: id=%d, counter=%d, mesg=%s\n", obj->id, obj->counter, obj->mesg);
+        obj->counter++;
+    }
 	
 	message(root_logger,"Saving object back to sqlite3\n");
-	work_queue_add(sqlite3_queue, work_queue_create_action("Save Object", ANBP_DB_SAVE_OBJECT, db_save_process, main_queue) );
+
+    db_action_save save;
+    smc_init_magic(db_action_save, &save);
+    save.object = obj;
+    save.q = main_queue;
+
+	work_queue_add(sqlite3_queue, work_queue_create_action("Save Object", ANBP_DB_SAVE_OBJECT, db_save_process, &save) );
+
+    {
+        mesg_queue_entry * e;
+        {
+            int ct=0;
+            while(mesg_queue_take(main_queue, &e)!=ANBPROTO_QUEUE_OK) {
+                ++ct;
+                if(ct>1000*100) {
+                    message(root_logger,"Didn't get my object :(\n");
+                    exit(1);
+                }
+
+                usleep(100);
+            }
+        }
+
+        message(root_logger,"TODO: object %p saved...\n", e);
+    }
 
 	message(root_logger,"Getting local git changes\n");
 	message(root_logger,"Telling local git to commit changes\n");
@@ -313,7 +438,7 @@ int main() {
 	work_queue_destroy( sqlite3_queue );
 	work_queue_destroy( git_local_queue );
 	work_queue_destroy( git_remote_queue );
-	work_queue_destroy( main_queue );
+	mesg_queue_destroy( main_queue );
 
 	message(root_logger,"Done\n");
 

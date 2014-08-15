@@ -89,6 +89,9 @@ typedef struct object_array object_array;
 typedef struct object_id object_id;
 typedef struct object object;
 
+struct object {
+};
+
 struct object_id {
     size_t length;
     const char * id;

@@ -89,15 +89,8 @@ struct sqlite3_worker_data {
 };
 typedef struct sqlite3_worker_data sqlite3_worker_data;
 
-// Dummy object 
-struct anbp_object {
-	SMC_ADD_MAGIC();
-    int id;
-	int counter;
-    const char * mesg;
-};
+#include "object.h"
 
-typedef struct anbp_object anbp_object;
 
 void* sqlite_thread_fn(void * data) {
 	smc_check_type(sqlite_thread_data, data);
@@ -221,12 +214,13 @@ void db_fetch_process(work_queue_entry * self, worker * w) {
             sqlite3_column_text(wd->select_stmt, 2)
            );
 
-	anbp_object * obj = malloc(sizeof(anbp_object));
-	smc_init_magic(anbp_object, obj);
-	obj->id = sqlite3_column_int(wd->select_stmt, 0);
-	obj->counter = sqlite3_column_int(wd->select_stmt, 1);
-    //TODO: Not really a nice way to do this? (sqlite knows the length etc.)
-    obj->mesg = strdup((const char*)sqlite3_column_text(wd->select_stmt, 2));
+	anbp_object * obj = NULL;
+    anbp_object_create(
+            &obj,
+            sqlite3_column_int(wd->select_stmt, 0),
+            sqlite3_column_int(wd->select_stmt, 1),
+            (const char*)sqlite3_column_text(wd->select_stmt, 2)
+            );
 
 	mesg_queue * q = action->q;
     //TODO: Should use a better type than this.

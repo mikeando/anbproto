@@ -23,9 +23,21 @@ struct simple_odb {
 
 typedef struct simple_odb simple_odb;
 
+//TODO: How do we report errors?
+#include <stdio.h>
+void object_load(object_id *id, object** result) {
+    //TODO: Implement me
+    printf("object_load: Loading object...\n");
+    *result = malloc(sizeof(object));
+}
+
 void simple_db_cb_get_object(worker * w, work_queue_entry * e, req_odb_get_object * req) {
     message(w->logger, "  + gotta go fetch me object with id %s\n", req->id.id);
-    req->result = NULL;
+
+    // TODO: Handle errors here
+    // TODO: Should this be behind another layer?
+    object_load(&req->id, &req->result);
+
     req->done(req);
 }
 
@@ -42,8 +54,7 @@ void simple_db_callback(work_queue_entry* self, worker* w) {
         simple_db_cb_get_object(w, self, (req_odb_get_object*)self->user_data);
     }
 
-    //TODO: Implement me.
-    //TODO: Work out which kind of request we have and handle it.
+    //TODO: Implement other request types.
 }
 
 

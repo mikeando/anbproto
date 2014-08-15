@@ -40,8 +40,8 @@ typedef struct work_queue_entry_vtable work_queue_entry_vtable;
 
 struct work_queue_entry {
 	SMC_ADD_MAGIC();
-	__attribute__((deprecated)) const char * name;
-	__attribute__((deprecated)) int type;
+	const char * name;
+	int type;
 	work_queue_entry_vtable * vtable;
 	void * user_data;
 };
@@ -51,5 +51,25 @@ struct work_queue {
 	SMC_ADD_MAGIC();
 	mesg_queue * mesg_queue;
 };
+
+//TODO: Not sure anything below here belongs in here
+#include "anbproto/logger.h"
+struct worker_vtable {
+	SMC_ADD_MAGIC();
+	void (*idle)(worker * );
+	void (*process)(worker * ,work_queue_entry* entry);
+};
+
+struct worker {
+	SMC_ADD_MAGIC();
+	struct worker_vtable * vtable;
+	work_queue * queue;
+	const char * name;
+	logger * root_logger;
+	logger * logger;
+	void * user_data;
+};
+
+void run_worker( struct worker * w );
 
 #endif

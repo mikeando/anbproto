@@ -1,5 +1,10 @@
 #ifndef ANBPROTO_ODB_H
 #define ANBPROTO_ODB_H
+
+#include <stdint.h>
+#include <string.h>
+#include "simplemagic.h"
+
 /**********************************************
  * Object Database functions.
  **********************************************/
@@ -106,7 +111,7 @@ struct req_odb_get_ids {
     void (*done)(req_odb_get_ids* self);
 };
 
-int odb_get_ids(odb * self, req_odb_get_ids * ids ) {
+static inline int odb_get_ids(odb * self, req_odb_get_ids * ids ) {
     return self->vtable->get_ids(self,ids);
 }
 
@@ -121,7 +126,7 @@ struct req_odb_get_metas {
     /** Called when completed */
     void (*done)(req_odb_get_metas* self);
 };
-int odb_get_metas( odb * self, req_odb_get_metas * metas ) {
+static inline int odb_get_metas( odb * self, req_odb_get_metas * metas ) {
     return self->vtable->get_metas(self,metas);
 }
 
@@ -136,7 +141,7 @@ struct req_odb_get_objects {
     /** Called when completed */
     void (*done)(req_odb_get_objects * self);
 };
-int odb_get_objects( odb * self, req_odb_get_objects * objects ) {
+static inline int odb_get_objects( odb * self, req_odb_get_objects * objects ) {
     return self->vtable->get_objects(self,objects);
 }
 
@@ -151,7 +156,7 @@ struct req_odb_get_object {
     /** Called when completed */
     void (*done)(req_odb_get_object* self);
 };
-int odb_get_object( odb * self, req_odb_get_object * req ) {
+static inline int odb_get_object( odb * self, req_odb_get_object * req ) {
     return self->vtable->get_object(self,req);
 }
 
@@ -165,7 +170,7 @@ struct req_odb_put_object {
     void (*done)(req_odb_put_object* self);
 };
 
-int odb_put_object( odb * self, req_odb_put_object * req ) {
+static inline int odb_put_object( odb * self, req_odb_put_object * req ) {
     return self->vtable->put_object(self,req);
 }
 

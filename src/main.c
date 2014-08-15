@@ -105,7 +105,6 @@ struct sqlite3_worker_data {
 typedef struct sqlite3_worker_data sqlite3_worker_data;
 
 // Dummy object 
-// TODO: Pull this from the SQLITE...
 struct anbp_object {
 	SMC_ADD_MAGIC();
     int id;
@@ -195,9 +194,11 @@ struct db_action_save {
 
 SMC_MAGIC(db_action_save, 0x43211234UL);
 
+#include "odb.h"
+#include "script.h"
+
 
 void db_fetch_process(work_queue_entry * self, worker * w) {
-	message(w->logger, "Loading object... (IMPLEMENT ME)\n");
 
 	smc_check_type(sqlite3_worker_data, w->user_data);
 	struct sqlite3_worker_data * wd = (struct sqlite3_worker_data*) w->user_data;
@@ -251,7 +252,7 @@ void db_fetch_process(work_queue_entry * self, worker * w) {
 }
 
 void db_save_process(work_queue_entry * entry, worker * w) {
-	message(w->logger, "Saving object... (IMPLEMENT ME)\n");
+	message(w->logger, "Saving object...\n");
 
 	smc_check_type(sqlite3_worker_data, w->user_data);
 	struct sqlite3_worker_data * wd = (struct sqlite3_worker_data*) w->user_data;
@@ -276,12 +277,181 @@ void db_save_process(work_queue_entry * entry, worker * w) {
 		message(w->logger, "Error saving to db (%d) : %s\n", status, sqlite3_errmsg(wd->db));
     }
 
-	//TODO: Do something with obj.
-
     mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
     smc_init_magic(mesg_queue_entry, e);
     //TODO: put something useful into e.
 	mesg_queue_add(q, e);
+}
+
+void got_object(req_odb_get_object* req) {
+    printf("Got object request %p\n",req);
+    //TODO: Assumes 0 terminated.
+    printf("   req.object_id = %s\n" , req->id.id);
+    printf("   req.result = %p\n", req->result);
+}
+
+#define SIMPLE_ODB_GET_IDS 1001
+#define SIMPLE_ODB_GET_METAS 1002
+#define SIMPLE_ODB_GET_OBJECTS 1003
+#define SIMPLE_ODB_GET_OBJECT 1004
+#define SIMPLE_ODB_PUT_OBJECT 1005
+
+typedef struct simple_odb_thread_data simple_odb_thread_data;
+struct simple_odb {
+    SMC_ADD_MAGIC();
+    work_queue * q;
+
+    //TODO: Move these into a ref counted structure so we can create more than
+    //one simple_odb object?
+    simple_odb_thread_data * simple_odb_data;
+    pthread_t * simple_odb_thread;
+};
+
+typedef struct simple_odb simple_odb;
+
+void simple_db_cb_get_object(worker * w, work_queue_entry * e, req_odb_get_object * req) {
+    message(w->logger, "  + gotta go fetch me object with id %s\n", req->id.id);
+    req->result = NULL;
+    req->done(req);
+}
+
+void simple_db_callback(work_queue_entry* self, worker* w) {
+	message(w->logger, "in simple_db_callback...\n");
+    message(w->logger, "  +  self.name = %s\n", self->name);
+    message(w->logger, "  +  self.type = %d\n", self->type);
+    message(w->logger, "  +  self.vtable = %p\n", self->vtable);
+    message(w->logger, "  +  self.user_data = %p\n", self->user_data);
+
+    if(self->type==SIMPLE_ODB_GET_OBJECT) {
+        message(w->logger, "looks like a Get object call - forwarding\n");
+        smc_check_type(req_odb_get_object, self->user_data);
+        simple_db_cb_get_object(w, self, (req_odb_get_object*)self->user_data);
+    }
+
+    //TODO: Implement me.
+    //TODO: Work out which kind of request we have and handle it.
+}
+
+
+int simple_odb_get_ids(odb * self, req_odb_get_ids * req ) {
+    smc_check_type(simple_odb, self->impl);
+    simple_odb * sodb = self->impl;
+    work_queue_add(sodb->q, work_queue_create_action("Get IDs", SIMPLE_ODB_GET_IDS, simple_db_callback, req));
+    return 0;
+}
+int simple_odb_get_metas( odb * self, req_odb_get_metas * req ) {
+    smc_check_type(simple_odb, self->impl);
+    simple_odb * sodb = self->impl;
+    work_queue_add(sodb->q, work_queue_create_action("Get metas", SIMPLE_ODB_GET_METAS, simple_db_callback, req));
+    return 0;
+}
+int simple_odb_get_objects( odb * self, req_odb_get_objects * req ) {
+    smc_check_type(simple_odb, self->impl);
+    simple_odb * sodb = self->impl;
+    work_queue_add(sodb->q, work_queue_create_action("Get objects", SIMPLE_ODB_GET_OBJECTS, simple_db_callback, req));
+    return 0;
+}
+int simple_odb_get_object( odb * self, req_odb_get_object * req ) {
+    smc_check_type(simple_odb, self->impl);
+    simple_odb * sodb = self->impl;
+    work_queue_add(sodb->q, work_queue_create_action("Get object", SIMPLE_ODB_GET_OBJECT, simple_db_callback, req));
+    return 0;
+}
+int simple_odb_put_object( odb * self, req_odb_put_object * req ) {
+    smc_check_type(simple_odb, self->impl);
+    simple_odb * sodb = self->impl;
+    work_queue_add(sodb->q, work_queue_create_action("Put object", SIMPLE_ODB_PUT_OBJECT, simple_db_callback, req));
+    return 0;
+}
+
+struct simple_odb_thread_data {
+    SMC_ADD_MAGIC();
+    work_queue * queue;
+    logger * root_logger;
+};
+
+void* simple_odb_thread_fn(void * data) {
+	smc_check_type(simple_odb_thread_data, data);
+	simple_odb_thread_data * d = data;
+
+    // TODO: Change the idle / process functions here?
+    // TODO: Pass extra info in the worker?
+	struct worker_vtable vtable = {smc__magic_worker_vtable, &idle, &process};
+	struct worker w = { smc__magic_worker, &vtable, d->queue, "SODB", d->root_logger, NULL, NULL };
+	run_worker(&w);
+	return NULL;
+}
+
+
+// TODO: Move me
+// TODO: Start up worker threads.
+odb * simple_odb_init( logger * root_logger ) {
+
+    // Create the queue
+	work_queue * odb_queue;
+	work_queue_create(&odb_queue);
+
+    simple_odb_thread_data * thread_data = malloc(sizeof(simple_odb_thread_data));
+    smc_init_magic(simple_odb_thread_data, thread_data);
+
+    thread_data->queue = odb_queue;
+    thread_data->root_logger = root_logger;
+
+    pthread_t * thread = malloc(sizeof(pthread_t));
+
+    // Start the worker thread
+	pthread_create(thread, NULL, &simple_odb_thread_fn, thread_data);
+
+    odb * retval = malloc(sizeof(odb));
+    smc_init_magic(odb, retval);
+    retval->vtable = malloc(sizeof(odb_vtable));
+    retval->vtable->get_ids = &simple_odb_get_ids;
+    retval->vtable->get_metas = &simple_odb_get_metas;
+    retval->vtable->get_object = &simple_odb_get_object;
+    retval->vtable->get_objects = &simple_odb_get_objects;
+    retval->vtable->put_object = &simple_odb_put_object;
+    simple_odb * sodb = malloc(sizeof(simple_odb));
+    smc_init_magic(simple_odb, sodb);
+    sodb->q = odb_queue;
+    sodb->simple_odb_data = thread_data;
+    sodb->simple_odb_thread = thread;
+    retval->impl = sodb;
+    return retval;
+}
+
+void simple_odb_destroy(odb* db) {
+    assert(db!=NULL);
+
+    smc_check_type(odb,db);
+    smc_check_type(simple_odb, db->impl);
+    simple_odb* sodb = (simple_odb*)db->impl;
+
+    work_queue_poison(sodb->q);
+    pthread_join(*sodb->simple_odb_thread, NULL);
+    free(sodb->simple_odb_thread);
+    free(sodb->simple_odb_data);
+    work_queue_destroy(sodb->q);
+    free(db->vtable);
+    free(sodb);
+    free(db);
+}
+
+int main2() {
+	logger * root_logger;
+	logger_init_root(&root_logger, "MAIN");
+
+    odb * db = simple_odb_init(root_logger);
+
+    req_odb_get_object req;
+    smc_init_magic(req_odb_get_object, &req);
+    req.id.id = "some_id";
+    req.id.length = strlen(req.id.id);
+    req.done = &got_object;
+
+    odb_get_object(db, &req);
+
+    simple_odb_destroy(db);
+    return 0;
 }
 
 
@@ -443,6 +613,8 @@ int main() {
 	message(root_logger,"Done\n");
 
 	logger_free_root(root_logger);
+
+    main2();
 
 	return 0;
 

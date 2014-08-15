@@ -16,5 +16,9 @@ SMC_MAGIC(work_queue             ,0x1c0504b859412982UL);
 SMC_MAGIC(sqlite3_worker_data    ,0xe948b1e3c9adcb30UL);
 SMC_MAGIC(mesg_queue             ,0xb7598d4e740fa5feUL);
 SMC_MAGIC(mesg_queue_entry       ,0x86fdc51ef81b698aUL);
+SMC_MAGIC(odb                    ,0xe6492e74d21c224fUL);
+SMC_MAGIC(simple_odb             ,0xb4ef73befb7b0966UL);
+SMC_MAGIC(simple_odb_thread_data ,0xc537663a9eac80eeUL);
+SMC_MAGIC(req_odb_get_object     ,0x819fa567d153977eUL);
 
 #endif

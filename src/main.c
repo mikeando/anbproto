@@ -12,6 +12,9 @@
 #include "anbproto/work_queue.h"
 #include "anbproto/structtypes.h"
 
+//TODO: remove sqlite_thread and git threads. 
+//      thats all going to hide behind the simple_odb backend.
+
 struct sqlite_thread_data {
 	SMC_ADD_MAGIC();
 	work_queue * queue;
@@ -37,7 +40,9 @@ struct git_remote_thread_data {
 
 typedef struct git_remote_thread_data git_remote_thread_data;
 
-
+//TODO: Move me into the work_queue file?
+//      And correspondingly trim down the work_queue visible interface.
+//      Distinguish ANBPROTO_QUEUE_EMPTY and ANBPROTO_QUEUE_BUSY vtable entries
 void run_worker( struct worker * w ) {
 	work_queue * q = w->queue;
 	logger * logx;
@@ -156,7 +161,7 @@ void do_saved(work_queue_entry* self, worker* w) {
 typedef struct db_action_fetch db_action_fetch;
 struct db_action_fetch {
     SMC_ADD_MAGIC();
-    int target_id;
+    const char * target_id;
     mesg_queue * q;
 };
 
@@ -187,8 +192,7 @@ void db_fetch_process(work_queue_entry * self, worker * w) {
 	int status;
 	sqlite3_reset(wd->select_stmt);
 	sqlite3_clear_bindings(wd->select_stmt);
-    sqlite3_bind_int(wd->select_stmt, 1, action->target_id);
-   
+    sqlite3_bind_text(wd->select_stmt, 1, action->target_id, strlen(action->target_id), SQLITE_TRANSIENT);
     
 	message(w->logger,"SQLITE: getting rows\n");	
 	status = sqlite3_step(wd->select_stmt);
@@ -208,16 +212,21 @@ void db_fetch_process(work_queue_entry * self, worker * w) {
 
 
     message(w->logger,"SQLITE: Got me a row\n");	
-    message(w->logger, "row : id=%d counter=%d mesg=%s\n", 
-            sqlite3_column_int(wd->select_stmt, 0),
+    message(w->logger, "row : id=%s counter=%d mesg=%s\n", 
+            sqlite3_column_text(wd->select_stmt, 0),
             sqlite3_column_int(wd->select_stmt, 1),
             sqlite3_column_text(wd->select_stmt, 2)
            );
 
+   
+   anbp_object_id id;
+   id.length = sqlite3_column_bytes(wd->select_stmt,0);
+   id.id = (const char*)sqlite3_column_text(wd->select_stmt,0);
+
 	anbp_object * obj = NULL;
     anbp_object_create(
             &obj,
-            sqlite3_column_int(wd->select_stmt, 0),
+            &id,
             sqlite3_column_int(wd->select_stmt, 1),
             (const char*)sqlite3_column_text(wd->select_stmt, 2)
             );
@@ -242,14 +251,14 @@ void db_save_process(work_queue_entry * entry, worker * w) {
     
 	anbp_object * obj = action->object;
 
-    message(w->logger,"Should be saving object id=%d, counter=%d, mesg=%s\n", obj->id, obj->counter, obj->mesg);
+    message(w->logger,"Should be saving object id=%s, counter=%d, mesg=%s\n", obj->id->id, obj->counter, obj->mesg);
 
 	int status;
 	sqlite3_reset(wd->update_stmt);
 	sqlite3_clear_bindings(wd->update_stmt);
     sqlite3_bind_int(wd->update_stmt, 1, obj->counter);
     sqlite3_bind_text(wd->update_stmt, 2, obj->mesg, strlen(obj->mesg), SQLITE_TRANSIENT);
-    sqlite3_bind_int(wd->update_stmt, 3, obj->id);
+    sqlite3_bind_text(wd->update_stmt, 3, obj->id->id, obj->id->length, SQLITE_TRANSIENT);
 	status = sqlite3_step(wd->update_stmt);
 
     if(status!=SQLITE_DONE) {
@@ -267,6 +276,25 @@ void got_object(req_odb_get_object* req) {
     //TODO: Assumes 0 terminated.
     printf("   req.object_id = %s\n" , req->id.id);
     printf("   req.result = %p\n", req->result);
+    smc_check_type(mesg_queue,req->userdata);
+    mesg_queue * q = req->userdata;
+    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
+    smc_init_magic(mesg_queue_entry, e);
+    e->user_data = req->result;
+	mesg_queue_add(q, e);
+}
+
+void put_object(req_odb_put_object* req) {
+    printf("Got object save request %p\n",req);
+    //TODO: Assumes 0 terminated.
+    /*
+    smc_check_type(mesg_queue,req->userdata);
+    mesg_queue * q = req->userdata;
+    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
+    smc_init_magic(mesg_queue_entry, e);
+    e->user_data = req->result;
+	mesg_queue_add(q, e);
+    */
 }
 
 #include "simple_odb.h"
@@ -279,13 +307,48 @@ int main2() {
 
     odb * db = simple_odb_init(root_logger);
 
+	mesg_queue * main_queue;
+	mesg_queue_create(&main_queue);
+
     req_odb_get_object req;
     smc_init_magic(req_odb_get_object, &req);
     req.id.id = "some_id";
     req.id.length = strlen(req.id.id);
+    req.userdata = main_queue;
     req.done = &got_object;
 
     odb_get_object(db, &req);
+
+    //Wait to get the object back on the main mesg queue
+    anbp_object * obj = NULL;
+    {
+        mesg_queue_entry * e;
+        {
+            int ct=0;
+            while(mesg_queue_take(main_queue, &e)!=ANBPROTO_QUEUE_OK) {
+                ++ct;
+                if(ct>1000*100) {
+                    message(root_logger,"Didn't get my object :(\n");
+                    exit(1);
+                }
+
+                usleep(100);
+            }
+        }
+
+        smc_check_type(anbp_object, e->user_data);
+        obj = e->user_data;
+        message(root_logger,"Got object: id=%s, counter=%d, mesg=%s\n", obj->id->id, obj->counter, obj->mesg);
+        obj->counter++;
+    }
+
+    req_odb_put_object req_put;
+    smc_init_magic(req_odb_put_object, &req_put);
+    req_put.object = obj;
+    req_put.done = &put_object;
+
+    odb_put_object(db, &req_put);
+
 
     simple_odb_destroy(db);
     return 0;
@@ -368,7 +431,7 @@ int main() {
 	//It needs to know where to stick the object once its loaded - thats the main queue.
     db_action_fetch fetch;
     smc_init_magic(db_action_fetch, &fetch);
-    fetch.target_id = 3;
+    fetch.target_id = "object_a";
     fetch.q = main_queue;
 
 	work_queue_add(sqlite3_queue, work_queue_create_action("Fetch Object", ANBP_DB_LOAD_OBJECT, db_fetch_process,  &fetch) );
@@ -391,7 +454,7 @@ int main() {
 
         smc_check_type(anbp_object, e->user_data);
         obj = e->user_data;
-        message(root_logger,"Got object: id=%d, counter=%d, mesg=%s\n", obj->id, obj->counter, obj->mesg);
+        message(root_logger,"Got object: id=%s, counter=%d, mesg=%s\n", obj->id->id, obj->counter, obj->mesg);
         obj->counter++;
     }
 	

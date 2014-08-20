@@ -20,5 +20,6 @@ SMC_MAGIC(odb                    ,0xe6492e74d21c224fUL);
 SMC_MAGIC(simple_odb             ,0xb4ef73befb7b0966UL);
 SMC_MAGIC(simple_odb_thread_data ,0xc537663a9eac80eeUL);
 SMC_MAGIC(req_odb_get_object     ,0x819fa567d153977eUL);
+SMC_MAGIC(req_odb_put_object     ,0xc04983607f87a533UL);
 
 #endif

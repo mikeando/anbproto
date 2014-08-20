@@ -4,6 +4,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "simplemagic.h"
+#include "object.h"
 
 /**********************************************
  * Object Database functions.
@@ -86,16 +87,7 @@ struct odb_vtable {
 typedef struct object_id_array object_id_array;
 typedef struct object_meta_array object_meta_array;
 typedef struct object_array object_array;
-typedef struct object_id object_id;
-typedef struct object object;
 
-struct object {
-};
-
-struct object_id {
-    size_t length;
-    const char * id;
-};
 
 /**
  * Request a list of object ids from an index.
@@ -124,6 +116,7 @@ static inline int odb_get_ids(odb * self, req_odb_get_ids * ids ) {
 struct req_odb_get_metas {
     SMC_ADD_MAGIC();
     request_range range;
+    void * userdata;
     /** Filled in when completed */
     object_meta_array * result; 
     /** Called when completed */
@@ -139,6 +132,7 @@ static inline int odb_get_metas( odb * self, req_odb_get_metas * metas ) {
 struct req_odb_get_objects {
     SMC_ADD_MAGIC();
     request_range range;
+    void * userdata;
     /** Filled in when completed */
     object_array * result; 
     /** Called when completed */
@@ -153,9 +147,10 @@ static inline int odb_get_objects( odb * self, req_odb_get_objects * objects ) {
  */
 struct req_odb_get_object {
     SMC_ADD_MAGIC();
-    object_id id;
+    anbp_object_id id;
+    void * userdata;
     /** Filled in when completed */
-    object * result; 
+    anbp_object * result; 
     /** Called when completed */
     void (*done)(req_odb_get_object* self);
 };
@@ -168,7 +163,8 @@ static inline int odb_get_object( odb * self, req_odb_get_object * req ) {
  */
 struct req_odb_put_object {
     SMC_ADD_MAGIC();
-    object * object;
+    anbp_object * object;
+    void * userdata;
     /** Called when completed */
     void (*done)(req_odb_put_object* self);
 };

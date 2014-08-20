@@ -25,10 +25,62 @@ typedef struct simple_odb simple_odb;
 
 //TODO: How do we report errors?
 #include <stdio.h>
-void object_load(object_id *id, object** result) {
+void object_save(anbp_object* obj);
+
+void object_load(anbp_object_id *id, anbp_object** result) {
     //TODO: Implement me
     printf("object_load: Loading object...\n");
-    *result = malloc(sizeof(object));
+
+    //TODO: Needs a bunch more checking!
+    //TODO: Make the root be part of the simple_odb config.
+	const char * home = getenv("HOME");
+	char path[1024];
+	snprintf(path,1024,"%s/anbproto/objects/%s", home, id->id);
+    FILE* f = fopen(path,"rb");
+    //TODO: Better error handling
+    if(f==NULL) {
+        printf("Loading object %s failed\n", path);
+        exit(1);
+    }
+    //TODO: Remove this field its now unused
+    int dumb_id;
+    fread(&dumb_id, sizeof(int), 1, f);
+    int dumb_counter;
+    fread(&dumb_counter, sizeof(int), 1, f);
+    int dumb_mesg_len;
+    fread(&dumb_mesg_len, sizeof(int), 1, f);
+    char * dumb_mesg = malloc(dumb_mesg_len+1);
+    fread(dumb_mesg, dumb_mesg_len, 1, f);
+    dumb_mesg[dumb_mesg_len]=0;
+    fclose(f);
+    //TODO: Copy the object id into the object - note id inside the object is wrong
+
+    anbp_object_create(result, id, dumb_counter, dumb_mesg); 
+}
+
+//TODO: Move the object id into the object - note current id inside the object is wrong
+void object_save(anbp_object* obj) {
+    printf("object_save: Saving object...\n");
+
+    //TODO: Needs a bunch more checking!
+    //TODO: Make the root be part of the simple_odb config.
+	const char * home = getenv("HOME");
+	char path[1024];
+	snprintf(path,1024,"%s/anbproto/objects/%s", home, obj->id->id);
+    FILE* f = fopen(path,"wb");
+    //TODO: Better error handling
+    if(f==NULL) {
+        printf("Saving object %s failed\n", path);
+        exit(1);
+    }
+    //TODO: Remove this unneeded field.
+    int dumb_id = 0;
+    fwrite(&dumb_id, sizeof(int), 1, f);
+    fwrite(&(obj->counter), sizeof(int), 1, f);
+    int mesg_len = strlen(obj->mesg);
+    fwrite(&mesg_len, sizeof(int), 1, f);
+    fwrite(obj->mesg, mesg_len, 1, f);
+    fclose(f);
 }
 
 void simple_db_cb_get_object(worker * w, work_queue_entry * e, req_odb_get_object * req) {

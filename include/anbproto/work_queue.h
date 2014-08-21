@@ -13,15 +13,21 @@
 typedef struct work_queue_entry work_queue_entry;
 typedef struct work_queue work_queue;
 typedef struct worker worker;
-void work_queue_create(work_queue **q);
-void work_queue_add(work_queue *q, work_queue_entry * entry);
 
+
+
+void work_queue_create(work_queue **q);
+void work_queue_destroy(work_queue *q);
+void work_queue_poison(work_queue *q);
+
+void work_queue_add(work_queue *q, work_queue_entry * entry);
 int work_queue_take(work_queue *q, work_queue_entry ** entry);
+
+
 
 //TODO: This action creator is naf.
 work_queue_entry * work_queue_create_action(const char * name, int type, void(*process)(work_queue_entry* self, worker* w), void* user_data);
-void work_queue_destroy(work_queue *q);
-void work_queue_poison(work_queue *q);
+void work_queue_entry_destroy(work_queue_entry*e);
 
 #include <stdint.h>
 #include "simplemagic.h"

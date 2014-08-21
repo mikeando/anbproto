@@ -59,4 +59,10 @@ static const int ANBPROTO_QUEUE_BUSY  = 3;
 
 int mesg_queue_take(mesg_queue *q, mesg_queue_entry ** entry);
 
+
+//TODO: Need to setup the vtable etc.
+mesg_queue_entry * mesg_queue_entry_create(void * user_data);
+void mesg_queue_entry_destroy(mesg_queue_entry * e);
+
+
 #endif

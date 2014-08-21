@@ -56,3 +56,8 @@ work_queue_entry * work_queue_create_action(const char * name, int type, void(*p
 	retval->user_data = user_data;
 	return retval;
 }
+
+void work_queue_entry_destroy(work_queue_entry*e) {
+    free(e->vtable);
+    free(e);
+}

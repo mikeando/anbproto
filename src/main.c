@@ -57,8 +57,7 @@ void run_worker( struct worker * w ) {
 		if(ok==ANBPROTO_QUEUE_OK) {
 			message(logx, "I have an entry\n");
 			w->vtable->process(w,entry);
-			//TODO: Need to release this using its vtable.
-			free(entry);
+			work_queue_entry_destroy(entry);
 		} else if( ok==ANBPROTO_QUEUE_EMPTY ){
 			message(logx,"My queue is empty...\n");
 			w->vtable->idle(w);
@@ -232,10 +231,9 @@ void db_fetch_process(work_queue_entry * self, worker * w) {
             );
 
 	mesg_queue * q = action->q;
+
     //TODO: Should use a better type than this.
-    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
-    smc_init_magic(mesg_queue_entry, e);
-    e->user_data = obj;
+    mesg_queue_entry * e = mesg_queue_entry_create(obj);
 	mesg_queue_add(q, e);
 }
 
@@ -265,9 +263,8 @@ void db_save_process(work_queue_entry * entry, worker * w) {
 		message(w->logger, "Error saving to db (%d) : %s\n", status, sqlite3_errmsg(wd->db));
     }
 
-    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
-    smc_init_magic(mesg_queue_entry, e);
     //TODO: put something useful into e.
+    mesg_queue_entry * e = mesg_queue_entry_create(NULL);
 	mesg_queue_add(q, e);
 }
 
@@ -278,9 +275,7 @@ void got_object(req_odb_get_object* req) {
     printf("   req.result = %p\n", req->result);
     smc_check_type(mesg_queue,req->userdata);
     mesg_queue * q = req->userdata;
-    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
-    smc_init_magic(mesg_queue_entry, e);
-    e->user_data = req->result;
+    mesg_queue_entry * e = mesg_queue_entry_create(req->result);
 	mesg_queue_add(q, e);
 }
 
@@ -290,9 +285,7 @@ void put_object(req_odb_put_object* req) {
     /*
     smc_check_type(mesg_queue,req->userdata);
     mesg_queue * q = req->userdata;
-    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
-    smc_init_magic(mesg_queue_entry, e);
-    e->user_data = req->result;
+    mesg_queue_entry * e = mesg_queue_entry_create(req->result);
 	mesg_queue_add(q, e);
     */
 }
@@ -340,6 +333,8 @@ int main2() {
         obj = e->user_data;
         message(root_logger,"Got object: id=%s, counter=%d, mesg=%s\n", obj->id->id, obj->counter, obj->mesg);
         obj->counter++;
+        mesg_queue_entry_destroy(e);
+        //TODO: Presumably we need to free the obj too.
     }
 
     req_odb_put_object req_put;
@@ -351,6 +346,8 @@ int main2() {
 
 
     simple_odb_destroy(db);
+    mesg_queue_destroy(main_queue);
+    logger_free_root(root_logger);
     return 0;
 }
 

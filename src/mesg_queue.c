@@ -67,3 +67,16 @@ int mesg_queue_take(mesg_queue *q, mesg_queue_entry ** entry) {
 	return ANBPROTO_QUEUE_EMPTY;
 }
 
+mesg_queue_entry * mesg_queue_entry_create(void * user_data) {
+    mesg_queue_entry * e = malloc(sizeof(mesg_queue_entry));
+    smc_init_magic(mesg_queue_entry, e);
+    e->user_data = user_data;
+    e->vtable = NULL;
+    return e;
+}
+
+//TODO: Use the vtable if given
+void mesg_queue_entry_destroy(mesg_queue_entry * e) {
+    free(e);
+}
+

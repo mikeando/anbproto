@@ -269,7 +269,7 @@ void db_save_process(work_queue_entry * entry, worker * w) {
 }
 
 void got_object(req_odb_get_object* req) {
-    printf("Got object request %p\n",req);
+    printf("Get object request completed: req = %p\n",req);
     //TODO: Assumes 0 terminated.
     printf("   req.object_id = %s\n" , req->id.id);
     printf("   req.result = %p\n", req->result);
@@ -280,7 +280,8 @@ void got_object(req_odb_get_object* req) {
 }
 
 void put_object(req_odb_put_object* req) {
-    printf("Got object save request %p\n",req);
+    printf("Put object request copmleted: req = %p\n",req);
+    anbp_object_free(req->object);
     //TODO: Assumes 0 terminated.
     /*
     smc_check_type(mesg_queue,req->userdata);
@@ -352,7 +353,7 @@ int main2() {
 }
 
 
-int main() {
+int main1() {
 
 	logger * root_logger;
 	logger_init_root(&root_logger, "MAIN");
@@ -481,6 +482,7 @@ int main() {
 
         message(root_logger,"TODO: object %p saved...\n", e);
     }
+    //TODO: We should have go the object back and we need to destroy it here.
 
 	message(root_logger,"Getting local git changes\n");
 	message(root_logger,"Telling local git to commit changes\n");
@@ -511,7 +513,7 @@ int main() {
 
 	logger_free_root(root_logger);
 
-    main2();
+
 
 	return 0;
 
@@ -523,4 +525,9 @@ error_exit:
 	logger_free_root(root_logger);
 
 	return 1;
+}
+
+int main() {
+    main1();
+    main2();
 }

@@ -56,6 +56,7 @@ void object_load(anbp_object_id *id, anbp_object** result) {
     //TODO: Copy the object id into the object - note id inside the object is wrong
 
     anbp_object_create(result, id, dumb_counter, dumb_mesg); 
+    free(dumb_mesg);
 }
 
 //TODO: Move the object id into the object - note current id inside the object is wrong

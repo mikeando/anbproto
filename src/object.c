@@ -25,3 +25,10 @@ int anbp_object_create(anbp_object ** object, anbp_object_id * id, int counter, 
     *object = obj;
     return 0;
 }
+
+void anbp_object_free(anbp_object * object) {
+    free((void*)object->id->id);
+    free(object->id);
+    free((void*)object->mesg);
+    free(object);
+}

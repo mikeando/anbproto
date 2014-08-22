@@ -21,6 +21,7 @@ struct anbp_object {
 };
 
 int anbp_object_create(anbp_object ** object, anbp_object_id *id, int counter, const char * mesg);
+void anbp_object_free(anbp_object * object);
 
 #endif
 

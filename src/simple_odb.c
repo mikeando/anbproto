@@ -53,13 +53,11 @@ void object_load(anbp_object_id *id, anbp_object** result) {
     fread(dumb_mesg, dumb_mesg_len, 1, f);
     dumb_mesg[dumb_mesg_len]=0;
     fclose(f);
-    //TODO: Copy the object id into the object - note id inside the object is wrong
 
     anbp_object_create(result, id, dumb_counter, dumb_mesg); 
     free(dumb_mesg);
 }
 
-//TODO: Move the object id into the object - note current id inside the object is wrong
 void object_save(anbp_object* obj) {
     printf("object_save: Saving object...\n");
 
@@ -94,6 +92,16 @@ void simple_db_cb_get_object(worker * w, work_queue_entry * e, req_odb_get_objec
     req->done(req);
 }
 
+void simple_db_cb_put_object(worker * w, work_queue_entry * e, req_odb_put_object * req) {
+    message(w->logger, "  + gotta go save  object with id %s\n", req->object->id->id);
+
+    // TODO: Handle errors here
+    // TODO: Should this be behind another layer?
+    object_save(req->object);
+
+    req->done(req);
+}
+
 void simple_db_callback(work_queue_entry* self, worker* w) {
 	message(w->logger, "in simple_db_callback...\n");
     message(w->logger, "  +  self.name = %s\n", self->name);
@@ -105,6 +113,11 @@ void simple_db_callback(work_queue_entry* self, worker* w) {
         message(w->logger, "looks like a Get object call - forwarding\n");
         smc_check_type(req_odb_get_object, self->user_data);
         simple_db_cb_get_object(w, self, (req_odb_get_object*)self->user_data);
+    }
+    if(self->type==SIMPLE_ODB_PUT_OBJECT) {
+        message(w->logger, "looks like a Put object call - forwarding\n");
+        smc_check_type(req_odb_put_object, self->user_data);
+        simple_db_cb_put_object(w, self, (req_odb_put_object*)self->user_data);
     }
 
     //TODO: Implement other request types.

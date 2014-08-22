@@ -453,6 +453,7 @@ int main1() {
         obj = e->user_data;
         message(root_logger,"Got object: id=%s, counter=%d, mesg=%s\n", obj->id->id, obj->counter, obj->mesg);
         obj->counter++;
+        mesg_queue_entry_destroy(e);
     }
 	
 	message(root_logger,"Saving object back to sqlite3\n");
@@ -482,6 +483,7 @@ int main1() {
         message(root_logger,"TODO: object %p saved...\n", e);
         smc_check_type(anbp_object, e->user_data);
         anbp_object_free((anbp_object*)e->user_data);
+        mesg_queue_entry_destroy(e);
     }
 
 	message(root_logger,"Getting local git changes\n");

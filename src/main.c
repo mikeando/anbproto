@@ -263,8 +263,7 @@ void db_save_process(work_queue_entry * entry, worker * w) {
 		message(w->logger, "Error saving to db (%d) : %s\n", status, sqlite3_errmsg(wd->db));
     }
 
-    //TODO: put something useful into e.
-    mesg_queue_entry * e = mesg_queue_entry_create(NULL);
+    mesg_queue_entry * e = mesg_queue_entry_create(obj);
 	mesg_queue_add(q, e);
 }
 
@@ -481,8 +480,9 @@ int main1() {
         }
 
         message(root_logger,"TODO: object %p saved...\n", e);
+        smc_check_type(anbp_object, e->user_data);
+        anbp_object_free((anbp_object*)e->user_data);
     }
-    //TODO: We should have go the object back and we need to destroy it here.
 
 	message(root_logger,"Getting local git changes\n");
 	message(root_logger,"Telling local git to commit changes\n");

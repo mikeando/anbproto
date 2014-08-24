@@ -13,7 +13,6 @@ struct logger {
 	const char * prefix;
 };
 
-// Create a logger with its own mutex
 void logger_init_root(logger** l, const char * name) {
 	logger * ll = malloc(sizeof(logger));
 	smc_init_magic(logger, ll);
@@ -23,7 +22,6 @@ void logger_init_root(logger** l, const char * name) {
 	*l = ll;
 }
 
-// Create a logger that shares the mutex of another 
 void logger_init_derived(logger**l, logger * parent, const char * name ) {
 	logger * ll = malloc(sizeof(logger));
 	ll->lock = parent->lock;

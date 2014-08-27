@@ -1,6 +1,6 @@
-#include "simple_odb.h"
+#include "anbproto/simple_odb.h"
 
-#include "anbproto/work_queue.h"
+#include "anbutil/work_queue.h"
 #include <assert.h>
 #include <stdlib.h>
 

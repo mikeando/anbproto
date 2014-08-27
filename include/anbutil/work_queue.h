@@ -1,7 +1,7 @@
 #ifndef ANBPROTO_WORK_QUEUE_H
 #define ANBPROTO_WORK_QUEUE_H
 
-#include "anbproto/mesg_queue.h"
+#include "anbutil/mesg_queue.h"
 
 /**
  * A `work_queue` is esentially a `mesg_queue` that contains
@@ -31,7 +31,7 @@ void work_queue_entry_destroy(work_queue_entry*e);
 
 #include <stdint.h>
 #include "simplemagic.h"
-#include "anbproto/structtypes.h"
+#include "anbutil/structtypes.h"
 
 // TODO: Make these more type-safey
 // TODO: Remove these!
@@ -59,7 +59,7 @@ struct work_queue {
 };
 
 //TODO: Not sure anything below here belongs in here
-#include "anbproto/logger.h"
+#include "anbutil/logger.h"
 struct worker_vtable {
 	SMC_ADD_MAGIC();
 	void (*idle)(worker * );

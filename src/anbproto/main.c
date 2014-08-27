@@ -8,8 +8,9 @@
 #include <sqlite3.h>
 #include <assert.h>
 
-#include "anbproto/logger.h"
-#include "anbproto/work_queue.h"
+#include "anbutil/logger.h"
+#include "anbutil/work_queue.h"
+#include "anbutil/structtypes.h"
 #include "anbproto/structtypes.h"
 
 //TODO: remove sqlite_thread and git threads. 
@@ -93,7 +94,7 @@ struct sqlite3_worker_data {
 };
 typedef struct sqlite3_worker_data sqlite3_worker_data;
 
-#include "object.h"
+#include "anbproto/object.h"
 
 
 void* sqlite_thread_fn(void * data) {
@@ -176,7 +177,7 @@ struct db_action_save {
 
 SMC_MAGIC(db_action_save, 0x43211234UL);
 
-#include "odb.h"
+#include "anbproto/odb.h"
 #include "script.h"
 
 
@@ -290,7 +291,7 @@ void put_object(req_odb_put_object* req) {
     */
 }
 
-#include "simple_odb.h"
+#include "anbproto/simple_odb.h"
 
 
 

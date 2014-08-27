@@ -1,4 +1,5 @@
-#include "anbproto/mesg_queue.h"
+#include "anbutil/mesg_queue.h"
+#include "anbutil/structtypes.h"
 #include "simplemagic.h"
 #include <stdlib.h>
 #include <string.h>

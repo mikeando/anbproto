@@ -1,5 +1,5 @@
-#include "anbproto/work_queue.h"
-#include "anbproto/structtypes.h"
+#include "anbutil/work_queue.h"
+#include "anbutil/structtypes.h"
 #include <pthread.h>
 #include <stdlib.h>
 #include <string.h>

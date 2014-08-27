@@ -1,10 +1,10 @@
-#include "anbproto/logger.h"
+#include "anbutil/logger.h"
 #include <stdlib.h>
 #include <pthread.h>
 #include <stdarg.h>
 #include <stdio.h>
 
-#include "anbproto/structtypes.h"
+#include "anbutil/structtypes.h"
 #include "simplemagic.h"
 
 struct logger {

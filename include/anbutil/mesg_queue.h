@@ -4,6 +4,7 @@
 #include <pthread.h>
 #include "simplemagic.h"
 #include "anbproto/structtypes.h"
+#include "anbutil/circular_buffer.h"
 
 typedef struct mesg_queue mesg_queue;
 typedef struct mesg_queue_entry mesg_queue_entry;
@@ -20,13 +21,7 @@ struct mesg_queue {
 	SMC_ADD_MAGIC();
 	pthread_mutex_t lock;
 	int poisoned;
-	//TODO: This needs a lot of work .. at the moment we just add entries and increment a cursor.
-	// And the data is not initialized below yet.
-	// Later we'll need to grow/shrink this dynamically.
-	int max_entries;
-	int write_cursor;
-	int read_cursor;
-	mesg_queue_entry** entries;
+  circular_buffer * buffer;
 };
 
 /**

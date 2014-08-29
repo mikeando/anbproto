@@ -134,7 +134,7 @@ void circular_buffer_shrink(
 void circular_buffer_free(
         circular_buffer * circ
         ) {
-    assert((circular_buffer_size(circ)==0) && !"circular buffer not empty");
+    assert((circular_buffer_size(circ)==0) || !"circular buffer not empty");
     free(circ->data);
     free(circ);
 }

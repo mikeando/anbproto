@@ -14,16 +14,23 @@ void mesg_queue_create(mesg_queue **q) {
 	retval->poisoned = 0;
 	pthread_mutex_init(&retval->lock, NULL);
 
-	retval->entries = malloc(sizeof(mesg_queue_entry*)*10);
-	retval->max_entries = 10;
-	retval->read_cursor = 0;  // Where the next read will read from
-	retval->write_cursor = 0; // Where the next add will write to
+  circular_buffer_create(&retval->buffer, 10);
 	*q = retval;
 };
 
 void mesg_queue_destroy(mesg_queue * q) {
 	pthread_mutex_destroy(&q->lock);
-	free(q->entries);
+  uint32_t queued_entries = circular_buffer_size(q->buffer);
+  //TODO: Need better handling of the still queued entries
+  if(queued_entries>0) {
+    printf("%d entries still queued - unqueueing\n", (int)queued_entries);
+    for(int i=0; i<queued_entries; ++i) {
+      void * dummy=NULL;
+      circular_buffer_get(q->buffer, &dummy);
+      printf("unqueued %p\n", dummy);
+    }
+  }
+  circular_buffer_free(q->buffer);
 	free(q);
 }
 
@@ -34,14 +41,9 @@ void mesg_queue_poison(mesg_queue *q) {
 }
 
 void mesg_queue_add(mesg_queue *q, mesg_queue_entry * entry) {
-	//TODO: Report errors better
-	if(q->write_cursor >= q->max_entries-1 ) {
-		printf("OMG I IZ TOAST.\n");
-		return;
-	}
-
-	q->entries[q->write_cursor] = entry;
-	q->write_cursor++;
+  pthread_mutex_lock(&q->lock);
+  circular_buffer_put(q->buffer,entry);
+  pthread_mutex_unlock(&q->lock);
 }
 
 #include <assert.h>
@@ -50,14 +52,14 @@ int mesg_queue_take(mesg_queue *q, mesg_queue_entry ** entry) {
 		return ANBPROTO_QUEUE_BUSY;
 
 
-	if(q->read_cursor < q->write_cursor) {
-                mesg_queue_entry * e = q->entries[q->read_cursor];
-                q->read_cursor++;
-                pthread_mutex_unlock(&q->lock);
+  void* result;
+  int ok = circular_buffer_get(q->buffer, &result);
 
-		*entry = e;
-		return ANBPROTO_QUEUE_OK;
-	}
+  if(ok==ECIRC_OK) {
+    *entry = (mesg_queue_entry*)result;
+    pthread_mutex_unlock(&q->lock);
+    return ANBPROTO_QUEUE_OK;
+  }
 
 	if(q->poisoned==1) {
 		pthread_mutex_unlock(&q->lock);

@@ -34,6 +34,7 @@ void circular_buffer_create(
 	retval->buffer_length = initial_capacity+1;
 	retval->read_cursor = 0;  // Where the next read will read from
 	retval->write_cursor = 0; // Where the next add will write to
+  *circ = retval;
 }
 
 
@@ -46,30 +47,32 @@ uint32_t circular_buffer_size(
     return circ->buffer_length - circ->read_cursor + circ->write_cursor;
 }
 
-void* circular_buffer_get(
-        circular_buffer * circ
+int circular_buffer_get(
+        circular_buffer * circ,
+        void ** p
         ) {
 
     if(circular_buffer_size(circ)<=0) {
-        assert(!"circular_buffer_get called on empty buffer");
-        return NULL;
+        return ECIRC_EMPTY;
     }
 
-    void * rv = circ->data[circ->read_cursor];
+    *p = circ->data[circ->read_cursor];
     circ->read_cursor = (circ->read_cursor + 1) % circ->buffer_length;
-    return rv;
+
+    return ECIRC_OK;
 }
 
-void circular_buffer_put(
+int circular_buffer_put(
         circular_buffer * circ,
         void * p
         ) {
     if(circular_buffer_size(circ)>=circ->buffer_length-1) {
-        assert(!"circular_buffer_put called on full buffer");
+        return ECIRC_FULL;
     }
 
     circ->data[circ->write_cursor]=p;
     circ->write_cursor = (circ->write_cursor + 1) % circ->buffer_length;
+    return ECIRC_OK;
 }
 
 void * circular_buffer_peek(
@@ -135,4 +138,4 @@ void circular_buffer_free(
     free(circ->data);
     free(circ);
 }
-
+/* vim: set ts=2 sw=2 expandtab: */

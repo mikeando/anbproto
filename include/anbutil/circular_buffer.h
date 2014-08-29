@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+static const int ECIRC_OK = 0;
+static const int ECIRC_FULL = -1;
+static const int ECIRC_EMPTY = -2;
+
+
 struct circular_buffer {
     uint32_t read_cursor;
     uint32_t write_cursor;
@@ -20,11 +25,12 @@ uint32_t circular_buffer_size(
         circular_buffer * circ
         );
 
-void* circular_buffer_get(
-        circular_buffer * circ
+int circular_buffer_get(
+        circular_buffer * circ,
+        void ** p
         );
 
-void circular_buffer_put(
+int circular_buffer_put(
         circular_buffer * circ,
         void * p
         );
@@ -49,4 +55,5 @@ void circular_buffer_free(
         );
 
 #endif
+/* vim: set ts=2 sw=2 expandtab: */
 
